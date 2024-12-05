@@ -1,0 +1,89 @@
+import logging
+import time
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
+
+# Вставьте сюда свой API токен, который вы получили от BotFather
+TOKEN = '7982951526:AAHqTkJB0lkd4rA-TPCaNA2XN1uBJgkBElM'
+
+# Укажите ID пользователя, который может делать рассылку
+ALLOWED_USER_ID = 7230694285  # Замените на ID нужного пользователя
+
+# Список ID чатов, которым будет отправляться сообщение
+chat_ids = []
+
+# Сообщение для рассылки
+message = "Это рассылка от вашего бота!"
+
+# Словарь для хранения активных пользователей
+active_users = {}
+
+# Настройка логирования
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Функция, которая будет обрабатывать команду /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
+
+    # Добавляем chat_id в список, если его там нет
+    if chat_id not in chat_ids:
+        chat_ids.append(chat_id)
+        await update.message.reply_text(f'Привет! Ты был добавлен в список рассылки. Твой ID чата: {chat_id}')
+    else:
+        await update.message.reply_text(f'Привет! Ты уже в списке рассылки. Твой ID чата: {chat_id}')
+
+    # Сохраняем пользователя в словаре активных пользователей
+    user = update.message.from_user
+    user_id = user.id
+    username = user.username
+
+    if user_id not in active_users:
+        active_users[user_id] = username
+
+# Функция для рассылки сообщений
+async def send_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Проверка, что команду вызвал пользователь с разрешенным ID
+    if update.message.chat_id != ALLOWED_USER_ID:
+        await update.message.reply_text("У вас нет прав для рассылки сообщений.")
+        return
+
+    # Если список chat_ids пустой
+    if not chat_ids:
+        await update.message.reply_text("Список рассылки пуст. Нет пользователей для отправки сообщения.")
+        return
+
+    for chat_id in chat_ids:
+        try:
+            # Используем context.bot для отправки сообщений
+            await context.bot.send_message(chat_id=chat_id, text=message)
+            print(f"Сообщение отправлено в чат {chat_id}")
+        except Exception as e:
+            # Если ошибка, выводим информацию о ней
+            print(f"Ошибка при отправке сообщения в чат {chat_id}: {e}")
+            await update.message.reply_text(f"Не удалось отправить сообщение в чат {chat_id}. Ошибка: {str(e)}")
+
+        time.sleep(1)  # Задержка между отправками, чтобы избежать блокировок
+
+    await update.message.reply_text("Сообщение отправлено всем пользователям.")
+
+# Функция для подсчета активных пользователей
+async def active_users_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    count = len(active_users)
+    await update.message.reply_text(f'Количество активных пользователей: {count}')
+
+# функция запуска бота
+def main():
+    # Создаем объект Application
+    application = Application.builder().token(TOKEN).build()
+
+    # Регистрация обработчиков команд
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("send", send_messages))
+    application.add_handler(CommandHandler("activeusers", active_users_count))
+
+    #получаем обновления 
+    application.run_polling()
+
+if __name__ == '__main__':
+    main()
